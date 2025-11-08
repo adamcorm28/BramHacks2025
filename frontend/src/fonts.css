@@ -1,0 +1,13 @@
+@font-face {
+  font-family: "SpaceAge";
+  src: url("./assets/space_age_font.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "CountdownFont";
+  src: url("./assets/countdown_font.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
