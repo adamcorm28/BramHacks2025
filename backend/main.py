@@ -5,17 +5,46 @@ import cv2, base64
 import asyncio
 import serial
 import time 
+from openai import OpenAI
+from dotenv import load_dotenv
+from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from openai import AsyncOpenAI
+from ultralytics import YOLO
 
+load_dotenv()
+
+client = AsyncOpenAI()
+
+yolo = YOLO("yolov8n.pt")
+
+messages = [
+    {"role": "system", "content": "You are a chatbot acting as a physics and astronomy professor. You will only answer questions related to anything about space, including history, facts, travel, and astrophysics, nothing else. Give a clear and concise answer. Your name is Wonder Rover. If someone doesn't know what to ask, give some sample questions they could ask. Keep the responses concise unless they want you to expand more. Your purpose is to make people more interested and engaged in space."}
+]
+
+class ChatRequest(BaseModel):
+    message: str
 
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-arduino = serial.Serial(port="/dev/cu.usbserial-0001", baudrate=9600, timeout=1)
+try:
+    arduino = serial.Serial(port="/dev/cu.usbserial-0001", baudrate=9600, timeout=1)
+except:
+    print("no arduino connected")
 time.sleep(2)
 
 moving: bool = False
 
-camera = cv2.VideoCapture(0) 
+cam_number = 0
+
+camera = cv2.VideoCapture(cam_number) 
 
 curr_time: int = 5
 
@@ -62,8 +91,9 @@ async def move_rover():
 async def startup_event():
     global camera
     global running
+    global cam_number
     running = True
-    camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture(cam_number)
     await asyncio.sleep(1) 
     if not camera.isOpened():
         raise RuntimeError("Failed to open camera")
@@ -105,6 +135,7 @@ async def timer_socket(websocket: WebSocket):
 async def set_move(data: dict):
     global moving
     global curr_move
+    print(data.get("direction", "").upper())
 
     if moving:
         return {"status": "rover moving", "command": "Rover is in motion"}
@@ -115,19 +146,88 @@ async def set_move(data: dict):
     return {"status": "movement received", "command": cmd}
 
 
-@app.post("/incoming_chat")
-async def gset_gpt_input(data: dict):
-    global moving
-    global curr_move
+@app.post("/chat")
+async def chat(request: ChatRequest):
+    user_message = request.message
+    messages.append({"role": "user", "content": user_message})
+    print(f">>> Received message: {user_message}")
 
-    if moving:
-        return {"status": "rover moving", "command": "Rover is in motion"}
+    try:
+        # Async non-streaming call (doesn't block event loop)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",  # or gpt-4o if needed
+            messages=messages,
+        )
 
-    cmd = data.get("direction", "").upper()
-    curr_move = cmd + '\n'
-    
-    return {"status": "movement received", "command": cmd}
+        reply = response.choices[0].message.content
+        messages.append({"role": "assistant", "content": reply})
 
+        print(">>> Reply:", reply)
+        return {"reply": reply}
+
+    except Exception as e:
+        print("Chat error:", e)
+        return {"reply": f"[SERVER ERROR: {e}]"}
+
+
+
+# @app.post("/chat")
+# async def chat(request: ChatRequest):
+#     """
+#     Handles user chat messages, sends them to GPT, and returns the model's reply.
+#     """
+#     # 1️⃣ Add the user message to context
+#     messages.append({"role": "user", "content": request.message})
+
+#     # 2️⃣ Call OpenAI
+#     response = client.chat.completions.create(
+#         model="gpt-4o-mini",
+#         messages=messages
+#     )
+
+#     # 3️⃣ Extract assistant reply
+#     reply = response.choices[0].message.content
+
+#     # 4️⃣ Add assistant message to conversation
+#     messages.append({"role": "assistant", "content": reply})
+
+#     # 5️⃣ Return JSON response to React
+#     return {"reply": reply}
+
+# @app.post("/chat/stream")
+# async def chat_stream(request: ChatRequest):
+#     user_message = request.message
+#     messages.append({"role": "user", "content": user_message})
+#     print(f">>> Received message: {user_message}")
+
+#     async def event_stream():
+#         print(">>> Stream starting...")
+#         full_response = ""  # collect chunks here
+#         try:
+#             async with client.chat.completions.stream(
+#                 model="gpt-4o",
+#                 messages=messages,
+#             ) as stream:
+#                 async for event in stream:
+#                     if event.type == "message.delta" and event.delta.get("content"):
+#                         chunk = event.delta["content"]
+#                         full_response += chunk
+#                         yield chunk.encode("utf-8")
+#                 print(">>> Stream loop ended")
+
+#             # after stream ends, store final assistant message
+#             messages.append({"role": "assistant", "content": full_response})
+#             print(">>> Stream complete")
+
+#         except Exception as e:
+#             print("Stream error:", e)
+#             yield f"[SERVER ERROR: {e}]".encode("utf-8")
+
+#     return StreamingResponse(
+#         event_stream(),
+#         media_type="text/plain",
+#         headers={"Transfer-Encoding": "chunked"},
+#     )
 
 
 @app.websocket('/ws/livestream')
@@ -135,21 +235,61 @@ async def livestream(websocket: WebSocket):
     await websocket.accept()
     global camera
     global running
+    global cam_number
+
+    frame_counter = 0
 
     try:
         while running:
             if not camera or not camera.isOpened():
-                camera = cv2.VideoCapture(0)
+                camera = cv2.VideoCapture(cam_number)
                 await asyncio.sleep(1)
 
             success, frame = camera.read()
             if not success:
                 await asyncio.sleep(0.1)
                 continue
+
+            # frame_counter += 1
+
+            # if frame_counter % 5 == 0:
+            #     detections = yolo(frame, verbose=False)
+            #     boxes = detections[0].boxes.data.cpu().numpy()
+
+            #     for box in boxes:
+            #         cls_id = int(box[5]) 
+            #         conf = float(box[4])  
+            #         x1, y1, x2, y2 = box[:4]
+
+            #         # Basic center and size check
+            #         cx = (x1 + x2) / 2
+            #         cy = (y1 + y2) / 2
+            #         width = x2 - x1
+            #         height = y2 - y1
+
+            #         if 0.4 < cx / frame.shape[1] < 0.6 and conf > 0.5:
+            #             print("Object detected ahead — stopping rover")
+            #             if moving:
+            #                 print("STOP")
+            #                 # arduino.write(b"STOP\n")
+            #                 # moving = False
+            #                 # await asyncio.sleep(1)
+            #                 # arduino.write(b"HARDLEFT\n")
+            #                 # curr_move = "HARDLEFT\n"
+            #             break
+
+
+            # results = yolo(frame, stream=False, verbose=False)
+            # annotated = results[0].plot()
+            # success, img = cv2.imencode(".jpg", annotated)
+
+            # if not success:
             success, img = cv2.imencode(".jpg", frame)
-            if not success:
-                await asyncio.sleep(0.1)
-                continue
+                # print("No detections can be made")
+
+            # if not success:
+            #     await asyncio.sleep(0.1)
+            #     continue
             frame_b64 = base64.b64encode(img).decode("utf-8")
             await websocket.send_text(frame_b64)
 

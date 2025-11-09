@@ -3,9 +3,6 @@ from dotenv import load_dotenv
 import os
 
 
-class GPTAPI(): {
-
-}
 load_dotenv()
 
 client = OpenAI()
@@ -28,7 +25,6 @@ response = client.chat.completions.create(
 
 messages.append({"role": "user", "content": "Move the rover forward"})
 response = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
-print(response.choices[0].message.content)
 
 messages.append({"role": "assistant", "content": response.choices[0].message.content})
 
