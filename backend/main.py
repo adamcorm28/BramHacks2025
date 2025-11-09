@@ -16,6 +16,8 @@ load_dotenv()
 
 client = AsyncOpenAI()
 
+detection_enabled = False
+
 yolo = YOLO("yolov8n.pt")
 
 messages = [
@@ -110,6 +112,21 @@ async def shutdown_event():
         camera = None
 
 
+@app.post("/toggle_detection")
+async def toggle_detection(data: dict):
+    global detection_enabled
+    state = data.get("enabled", None)
+
+    if state is None:
+        detection_enabled = not detection_enabled 
+    else:
+        detection_enabled = bool(state)
+
+    print(f"Detection {'ON' if detection_enabled else 'OFF'}")
+    return {"detection_enabled": detection_enabled}
+
+
+
 @app.websocket("/ws/timer")
 async def timer_socket(websocket: WebSocket):
     global curr_time
@@ -170,66 +187,6 @@ async def chat(request: ChatRequest):
         return {"reply": f"[SERVER ERROR: {e}]"}
 
 
-
-# @app.post("/chat")
-# async def chat(request: ChatRequest):
-#     """
-#     Handles user chat messages, sends them to GPT, and returns the model's reply.
-#     """
-#     # 1️⃣ Add the user message to context
-#     messages.append({"role": "user", "content": request.message})
-
-#     # 2️⃣ Call OpenAI
-#     response = client.chat.completions.create(
-#         model="gpt-4o-mini",
-#         messages=messages
-#     )
-
-#     # 3️⃣ Extract assistant reply
-#     reply = response.choices[0].message.content
-
-#     # 4️⃣ Add assistant message to conversation
-#     messages.append({"role": "assistant", "content": reply})
-
-#     # 5️⃣ Return JSON response to React
-#     return {"reply": reply}
-
-# @app.post("/chat/stream")
-# async def chat_stream(request: ChatRequest):
-#     user_message = request.message
-#     messages.append({"role": "user", "content": user_message})
-#     print(f">>> Received message: {user_message}")
-
-#     async def event_stream():
-#         print(">>> Stream starting...")
-#         full_response = ""  # collect chunks here
-#         try:
-#             async with client.chat.completions.stream(
-#                 model="gpt-4o",
-#                 messages=messages,
-#             ) as stream:
-#                 async for event in stream:
-#                     if event.type == "message.delta" and event.delta.get("content"):
-#                         chunk = event.delta["content"]
-#                         full_response += chunk
-#                         yield chunk.encode("utf-8")
-#                 print(">>> Stream loop ended")
-
-#             # after stream ends, store final assistant message
-#             messages.append({"role": "assistant", "content": full_response})
-#             print(">>> Stream complete")
-
-#         except Exception as e:
-#             print("Stream error:", e)
-#             yield f"[SERVER ERROR: {e}]".encode("utf-8")
-
-#     return StreamingResponse(
-#         event_stream(),
-#         media_type="text/plain",
-#         headers={"Transfer-Encoding": "chunked"},
-#     )
-
-
 @app.websocket('/ws/livestream')
 async def livestream(websocket: WebSocket):
     await websocket.accept()
@@ -278,18 +235,17 @@ async def livestream(websocket: WebSocket):
             #                 # curr_move = "HARDLEFT\n"
             #             break
 
+            if detection_enabled:
+                results = yolo(frame, stream=False, verbose=False)
+                annotated = results[0].plot()
+                success, img = cv2.imencode(".jpg", annotated)
+            else:
+                success, img = cv2.imencode(".jpg", frame)
 
-            # results = yolo(frame, stream=False, verbose=False)
-            # annotated = results[0].plot()
-            # success, img = cv2.imencode(".jpg", annotated)
+            if not success:
+                await asyncio.sleep(0.1)
+                continue
 
-            # if not success:
-            success, img = cv2.imencode(".jpg", frame)
-                # print("No detections can be made")
-
-            # if not success:
-            #     await asyncio.sleep(0.1)
-            #     continue
             frame_b64 = base64.b64encode(img).decode("utf-8")
             await websocket.send_text(frame_b64)
 

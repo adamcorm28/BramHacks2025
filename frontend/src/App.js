@@ -35,6 +35,25 @@ function App() {
   }, [messages]);
 
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key.toLowerCase() === "d") {
+        fetch("http://127.0.0.1:8000/toggle_detection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        })
+          .then((res) => res.json())
+          .then((data) => console.log("Detection:", data.detection_enabled))
+          .catch((err) => console.error("Error toggling detection:", err));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+
 
 
   const handleSend = async () => {
@@ -88,35 +107,6 @@ const handleMove = (direction) => {
         <h1 style={styles.title}>Wonder</h1>
         <button style = {styles.headerButton} onClick={() => {}}>Profile</button>
       </div>
-
-      {/* <div style={styles.controls}>
-        <VoteButton func = {handleMove} direction = "forward" />
-        <div>
-          <button onClick={() => handleMove("left")}>← Left</button>
-          <button onClick={() => handleMove("stop")}>⏹ Stop</button>
-          <button onClick={() => handleMove("right")}>→ Right</button>
-        </div>
-        <button onClick={() => handleMove("backward")}>↓ Backward</button>
-      </div> */}
-
-      {/* <div style={{ ...styles.main, marginRight: chatOpen ? "500px" : "0" }}>
-        <div style={styles.videoContainer}>
-
-          <div style={styles.video}>
-            <img
-              src={VideoStream() || noSignal}
-              alt={"No steam available"}
-              style={{ width: "100%", borderRadius: "8px" }}
-            />
-          </div>
-          <div style={styles.timer}>{Timer()}</div>
-        </div>
-        <div style={styles.controlsRow}>
-          <button style = {styles.circleButton1} onClick={() => handleMove("left")}></button>
-          <button style = {styles.circleButton2} onClick={() => handleMove("forward")}></button>
-          <button style = {styles.circleButton3} onClick={() => handleMove("right")}></button>
-        </div>
-      </div> */}
 
 
       <div style={styles.main}>
@@ -291,11 +281,11 @@ const styles = {
   },
   footer: {
     display: "flex",
-    flexDirection: "column",        // stack vertically
-    alignItems: "center",           // center horizontally
-    justifyContent: "center",       // center vertically (if needed)
-    gap: "20px",                    // spacing between the rows
-    width: "100%",                  // full width
+    flexDirection: "column",      
+    alignItems: "center",       
+    justifyContent: "center",     
+    gap: "20px",                
+    width: "100%",                 
     marginTop: "20px",
   },
   footerButton: {
@@ -335,16 +325,10 @@ const styles = {
     color: `#FFEA00`,
     position: "absolute",  
     top: 0,
-    // left: 0,
     right: 0,
-    // bottom: 0,
     padding: "10px",
     display: "flex",
     flexDirection: "column",
-    // alignItems: "flex-end",
-    // justifyContent: "flex-start",
-    // margin: "20px",
-    // backgroundColor: "rgba(0, 0, 0, 0.2)", 
     zIndex: 2,
   },
   circleButton1: {
@@ -370,17 +354,6 @@ const styles = {
     backgroundPosition: "51% 0%", 
     cursor: "pointer",
   },
-  // circleButton2: {
-  //   width: "40px",                
-  //   height: "40px",
-  //   borderRadius: "50%",         
-  //   border: "none",
-  //   backgroundImage: `url(${circle2})`,
-  //   backgroundRepeat: "no-repeat",
-  //   backgroundSize: "200% 200%",      
-  //   backgroundPosition: "50% 50%", 
-  //   cursor: "pointer",
-  // },
   circleButton3: {
     width: "60px",                
     height: "60px",
@@ -393,20 +366,20 @@ const styles = {
     cursor: "pointer",
   },
   donateButton: {
-    position: "fixed",          // stays fixed on screen
-    bottom: "20px",             // distance from bottom
-    left: "50%",                // move to middle horizontally
-    transform: "translateX(-50%)",  // center it perfectly
+    position: "fixed",        
+    bottom: "20px",       
+    left: "50%",              
+    transform: "translateX(-50%)",  
     width: "180px",
     height: "60px",
     borderRadius: "100%",
     border: "none",
     backgroundImage: `url(${donateBtn})`,
     backgroundRepeat: "no-repeat",
-    backgroundSize: "cover",  // scales image cleanly
+    backgroundSize: "cover", 
     backgroundPosition: "center",
     cursor: "pointer",
-    zIndex: 10,                 // ensures it's above other content
+    zIndex: 10,                
   },
 
 
@@ -423,8 +396,8 @@ const styles = {
   chatPanel: {
     position: "fixed",
     top: "15%",
-    right: "40px", // offset from the right edge
-    transform: "translateY(-50%)", // vertical centering
+    right: "40px", 
+    transform: "translateY(-50%)", 
     width: "350px",
     height: "65%",
     backgroundColor: "rgba(30,30,30,0.95)",
@@ -435,8 +408,8 @@ const styles = {
     zIndex: 4,
     borderRadius: "15px",
     display: "flex",
-    flexDirection: "column", // so we can place chat + input vertically
-    justifyContent: "space-between", // space for chat body + input
+    flexDirection: "column", 
+    justifyContent: "space-between", 
   },
   chatTitle: {
     fontSize: "1.5rem",
@@ -483,7 +456,7 @@ controlsRow: {
 main: {
   position: "relative",
   width: "100%",
-  height: "calc(100vh - 200px)", // leave room for title/header
+  height: "calc(100vh - 200px)", 
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
@@ -494,12 +467,11 @@ videoGroup: {
   position: "absolute",
   top: "50%",
   left: "50%",
-  transform: "translate(-50%, -50%)", // perfectly centered by default
+  transform: "translate(-50%, -50%)",
   transition: "transform 0.5s ease",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  // gap: "25px",
 },
 chatMessage: {
   maxWidth: "75%",
@@ -513,14 +485,14 @@ chatMessage: {
 },
 chatIcon: {
   position: "absolute",
-  bottom: "80px",      // distance from bottom
-  right: "-105px",      // distance from right edge
-  width: "400px",       // icon size
+  bottom: "80px",     
+  right: "-105px",  
+  width: "400px",      
   height: "300px",
   cursor: "pointer",
   zIndex: 5,
   transition: "opacity 0.3s ease, transform 0.3s ease",
-  borderRadius: "50%", // optional: makes the icon round
+  borderRadius: "50%", 
 },
 
 chatHeader: {
@@ -546,10 +518,8 @@ overlay: {
     left: 0,
     width: "100%",
     height: "100%",
-    pointerEvents: "none", // so it doesn’t block clicks
+    pointerEvents: "none", 
   },
-
-
 };
 
 

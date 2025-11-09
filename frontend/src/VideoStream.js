@@ -21,12 +21,6 @@ function VideoStream() {
     }, []);
 
   return imageSrc || ""
-    // <img
-    //   src={imageSrc || ""}
-    //   alt={!imageSrc ? "Livestream is currently down" : "Rover livestream"}
-    // //   style={{ width: "70vw", borderRadius: "8px" }}
-    // />
-//   );
 }
 
 export default VideoStream;
